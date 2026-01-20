@@ -1,13 +1,19 @@
-function requireEnv(key: string): string {
-  const value = process.env[key]
-  if (!value) {
-    throw new Error(`Missing required env var: ${key}`)
-  }
-  return value
+import 'dotenv/config'
+import { z } from 'zod'
+
+const EnvSchema = z.object({
+  NODE_ENV: z
+    .enum(['development', 'test', 'production'])
+    .default('development'),
+  PORT: z.coerce.number().int().positive().default(4000),
+  CORS_ORIGIN: z.string().min(1, 'CORS_ORIGIN is required'),
+})
+
+const parsed = EnvSchema.safeParse(process.env)
+
+if (!parsed.success) {
+  const tree = z.treeifyError(parsed.error)
+  throw new Error(`Invalid environment variables: ${JSON.stringify(tree)}`)
 }
 
-export const env = {
-  PORT: Number(process.env.PORT ?? 4000),
-  NODE_ENV: process.env.NODE_ENV ?? 'development',
-  // No JWT/DB vars yet, need to add later
-}
+export const env = parsed.data
