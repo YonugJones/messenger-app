@@ -6,6 +6,8 @@ import { notFound } from './middleware/notFound.js'
 import { errorHandler } from './middleware/errorHandler.js'
 import { prisma } from './lib/prisma.js'
 import { authRouter } from './modules/auth/auth.routes.js'
+import { conversationsRouter } from './modules/conversations/conversations.routes.js'
+import { messagesRouter } from './modules/messages/messages.routes.js'
 
 export const app = express()
 
@@ -33,6 +35,8 @@ app.get('/debug/users-count', async (_req, res, next) => {
 })
 
 app.use('/auth', authRouter)
+app.use('/conversations', conversationsRouter)
+app.use('/conversations/:id/messages', messagesRouter)
 
 app.use(notFound)
 app.use(errorHandler)
