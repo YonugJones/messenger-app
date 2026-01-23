@@ -1,5 +1,5 @@
 import { z } from 'zod'
 
 export const CreateConversationSchema = z.object({
-  recipientUserId: z.uuid(),
+  recipientUsername: z.string().min(3).max(32),
 })

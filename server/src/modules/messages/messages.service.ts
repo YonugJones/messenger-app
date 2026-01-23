@@ -10,16 +10,20 @@ export async function sendMessage(params: {
 
   await assertUserIsConversationMember({ conversationId, userId: senderId })
 
-  // Create message and bump conversation updatedAt by touching conversation
   const message = await prisma.$transaction(async (tx) => {
     const created = await tx.message.create({
       data: { conversationId, senderId, content },
       select: {
         id: true,
         conversationId: true,
-        senderId: true,
         content: true,
         createdAt: true,
+        sender: {
+          select: {
+            id: true,
+            username: true,
+          },
+        },
       },
     })
 
@@ -45,8 +49,6 @@ export async function listMessages(params: {
 
   await assertUserIsConversationMember({ conversationId, userId })
 
-  // Cursor pagination by message id, ordered by createdAt desc.
-  // Return newest first for now
   const messages = await prisma.message.findMany({
     where: { conversationId },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -60,9 +62,14 @@ export async function listMessages(params: {
     select: {
       id: true,
       conversationId: true,
-      senderId: true,
       content: true,
       createdAt: true,
+      sender: {
+        select: {
+          id: true,
+          username: true,
+        },
+      },
     },
   })
 

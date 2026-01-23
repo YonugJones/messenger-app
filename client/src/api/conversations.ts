@@ -5,7 +5,7 @@ export function listConversations() {
   return apiFetch<{ ok: true; conversations: Conversation[] }>('/conversations')
 }
 
-export function createConversation(data: { recipientUserId: string }) {
+export function createConversation(data: { recipientUsername: string }) {
   return apiFetch<{ ok: true; conversation: Conversation }>('/conversations', {
     method: 'POST',
     body: JSON.stringify(data),

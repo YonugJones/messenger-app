@@ -23,34 +23,32 @@ export async function listConversationsForUser(userId: string) {
 
 export async function getOrCreateDirectConversation(params: {
   userId: string
-  recipientUserId: string
+  recipientUsername: string
 }) {
-  const { userId, recipientUserId } = params
-
-  if (userId === recipientUserId) {
-    throw new AppError('Cannot create a conversation with yourself', 400)
-  }
+  const { userId, recipientUsername } = params
 
   // Ensure recipient exists
   const recipient = await prisma.user.findUnique({
-    where: { id: recipientUserId },
-    select: { id: true },
+    where: { username: recipientUsername },
+    select: { id: true, username: true },
   })
+
   if (!recipient) throw new AppError('Recipient not found', 404)
+  if (recipient.id === userId) {
+    throw new AppError('Cannot create conversation with yourself', 400)
+  }
+
+  const recipientUserId = recipient.id
 
   // Find an existing conversation that has exactly these two members.
   // Prisma can’t express “exactly these members” perfectly in one query across all DBs,
   // so do: find conversations where both are members, then confirm count=2.
   const candidates = await prisma.conversation.findMany({
     where: {
-      members: {
-        some: { userId },
-      },
-      AND: {
-        members: {
-          some: { userId: recipientUserId },
-        },
-      },
+      AND: [
+        { members: { some: { userId } } },
+        { members: { some: { userId: recipientUserId } } },
+      ],
     },
     select: {
       id: true,

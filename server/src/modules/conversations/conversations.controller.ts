@@ -16,12 +16,13 @@ export const listConversations: RequestHandler = async (req, res, next) => {
 }
 
 export const createConversation: RequestHandler = async (req, res, next) => {
+  const { recipientUsername } = req.body
   try {
     if (!req.user) throw new AppError('Unauthorized', 401)
 
     const conversation = await getOrCreateDirectConversation({
       userId: req.user.id,
-      recipientUserId: req.body.recipientUserId,
+      recipientUsername,
     })
 
     res.status(201).json({ ok: true, conversation })

@@ -7,7 +7,7 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  const [recipientUserId, setRecipientUserId] = useState('')
+  const [recipientUsername, setrecipientUsername] = useState('')
   const [creatingConversation, setCreatingConversation] = useState(false)
 
   const [messages, setMessages] = useState<Message[]>([])
@@ -68,16 +68,24 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
     }
   }, [selectedId])
 
+  const selectedConversation = conversations.find((c) => c.id === selectedId)
+
+  const conversationTitle =
+    selectedConversation?.members
+      .map((m) => m.user.username)
+      .filter((u) => u !== currentUser.username)
+      .join(', ') || 'Conversation'
+
   async function onCreateConversation() {
-    const trimmed = recipientUserId.trim()
+    const trimmed = recipientUsername.trim()
     if (!trimmed) return
 
     setError(null)
     setCreatingConversation(true)
 
     try {
-      const res = await createConversation({ recipientUserId: trimmed })
-      setRecipientUserId('')
+      const res = await createConversation({ recipientUsername: trimmed })
+      setrecipientUsername('')
 
       const refreshed = await listConversations()
       setConversations(refreshed.conversations)
@@ -121,16 +129,16 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
 
         <div className='mb-3 flex gap-2'>
           <input
-            placeholder='Recipient user id'
+            placeholder='Username'
             className='glass-input'
-            value={recipientUserId}
-            onChange={(e) => setRecipientUserId(e.target.value)}
+            value={recipientUsername}
+            onChange={(e) => setrecipientUsername(e.target.value)}
           />
           <button
             type='button'
             onClick={onCreateConversation}
             disabled={
-              creatingConversation || recipientUserId.trim().length === 0
+              creatingConversation || recipientUsername.trim().length === 0
             }
             className='glass-button whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60'
           >
@@ -164,7 +172,6 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
                       : 'border-white/10 bg-white/5 hover:bg-white/10'
                   }`}
                 >
-                  <div className='truncate text-xs text-slate-400'>{c.id}</div>
                   <div className='mt-0.5 text-slate-100'>{label}</div>
                 </button>
               )
@@ -176,12 +183,9 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
       {/* Messages */}
       <main className='glass flex flex-col p-4'>
         <div className='mb-3 flex items-center justify-between'>
-          <h2 className='text-sm font-semibold text-slate-200'>Messages</h2>
-          {selectedId && (
-            <span className='truncate text-xs text-slate-400'>
-              {selectedId}
-            </span>
-          )}
+          <h2 className='text-sm font-semibold text-slate-200'>
+            {conversationTitle}
+          </h2>
         </div>
 
         <div className='glass-inset flex-1 overflow-y-auto p-3'>
@@ -194,7 +198,7 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
           ) : (
             <div className='space-y-3'>
               {messages.map((m) => {
-                const mine = m.senderId === currentUser.id
+                const mine = m.sender.id === currentUser.id
 
                 return (
                   <div
@@ -209,7 +213,7 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
                       }`}
                     >
                       <div className='mb-1 text-xs text-slate-400'>
-                        {mine ? 'You' : m.senderId} ·{' '}
+                        {mine ? 'You' : m.sender.username} ·{' '}
                         {new Date(m.createdAt).toLocaleString()}
                       </div>
                       <div className='text-slate-100'>{m.content}</div>
