@@ -17,28 +17,33 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className='flex h-screen items-center justify-center text-gray-600'>
+      <div className='flex min-h-screen items-center justify-center text-slate-300'>
         Loading…
       </div>
     )
   }
 
-  if (!user) {
-    return <LoginPage onAuthed={setUser} />
-  }
+  if (!user) return <LoginPage onAuthed={setUser} />
 
   return (
-    <div className='mx-auto max-w-5xl p-4'>
-      <header className='mb-4 flex items-center justify-between border-b pb-3'>
-        <div className='text-sm text-gray-700'>
-          Logged in as <span className='font-semibold'>{user.username}</span>
+    <div className='mx-auto max-w-6xl px-4 py-6'>
+      <header className='glass mb-5 flex items-center justify-between px-5 py-4'>
+        <div className='flex flex-col'>
+          <span className='text-xs uppercase tracking-wide text-slate-400'>
+            Messenger
+          </span>
+          <span className='text-sm text-slate-200'>
+            Logged in as <span className='font-semibold'>{user.username}</span>
+          </span>
         </div>
+
         <button
+          type='button'
           onClick={async () => {
             await logout()
             setUser(null)
           }}
-          className='rounded-md bg-gray-900 px-3 py-1.5 text-sm text-white hover:bg-gray-800'
+          className='glass-button'
         >
           Logout
         </button>

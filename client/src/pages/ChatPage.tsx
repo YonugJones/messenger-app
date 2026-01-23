@@ -18,7 +18,6 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
 
   const [error, setError] = useState<string | null>(null)
 
-  // Initial load: conversations
   useEffect(() => {
     let cancelled = false
 
@@ -41,7 +40,6 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
     }
   }, [])
 
-  // Load messages when conversation changes
   useEffect(() => {
     if (!selectedId) return
 
@@ -54,12 +52,14 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
 
         const r = await listMessages(selectedId, { limit: 30 })
         if (cancelled) return
+
         setMessages(r.messages.slice().reverse())
       } catch (e) {
         if (cancelled) return
         setError(e instanceof Error ? e.message : 'Error')
       } finally {
-        setLoadingMessages(false)
+        // avoid return in finally
+        if (!cancelled) setLoadingMessages(false)
       }
     })()
 
@@ -79,11 +79,8 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
       const res = await createConversation({ recipientUserId: trimmed })
       setRecipientUserId('')
 
-      // Refresh conversations list after creation
       const refreshed = await listConversations()
       setConversations(refreshed.conversations)
-
-      // Select the created (or fetched) conversation
       setSelectedId(res.conversation.id)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
@@ -112,98 +109,141 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
   }
 
   return (
-    <div className='grid grid-cols-[320px_1fr] gap-4'>
+    <div className='grid gap-4 lg:grid-cols-[360px_1fr]'>
       {/* Sidebar */}
-      <aside className='rounded-lg border p-3'>
-        <h2 className='mb-3 font-semibold'>Conversations</h2>
+      <aside className='glass p-4'>
+        <div className='mb-3 flex items-center justify-between'>
+          <h2 className='text-sm font-semibold text-slate-200'>
+            Conversations
+          </h2>
+          <span className='text-xs text-slate-400'>{conversations.length}</span>
+        </div>
 
         <div className='mb-3 flex gap-2'>
           <input
             placeholder='Recipient user id'
-            className='flex-1 rounded-md border px-2 py-1 text-sm'
+            className='glass-input'
             value={recipientUserId}
             onChange={(e) => setRecipientUserId(e.target.value)}
           />
           <button
+            type='button'
             onClick={onCreateConversation}
             disabled={
               creatingConversation || recipientUserId.trim().length === 0
             }
-            className='rounded-md bg-gray-900 px-3 py-1 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60'
+            className='glass-button whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60'
           >
             {creatingConversation ? 'Creating…' : 'Create'}
           </button>
         </div>
 
         <div className='space-y-2'>
-          {conversations.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => setSelectedId(c.id)}
-              className={`w-full rounded-md border p-2 text-left text-sm ${
-                c.id === selectedId
-                  ? 'border-gray-900 bg-gray-100'
-                  : 'hover:bg-gray-50'
-              }`}
-            >
-              <div className='truncate text-xs text-gray-500'>{c.id}</div>
-              <div>
-                {c.members
+          {conversations.length === 0 ? (
+            <div className='glass-inset p-3 text-sm text-slate-400'>
+              No conversations yet.
+            </div>
+          ) : (
+            conversations.map((c) => {
+              const label =
+                c.members
                   .map((m) => m.user.username)
                   .filter((u) => u !== currentUser.username)
-                  .join(', ') || '(you)'}
-              </div>
-            </button>
-          ))}
+                  .join(', ') || '(you)'
 
-          {conversations.length === 0 && (
-            <p className='text-sm text-gray-500'>No conversations yet.</p>
+              const active = c.id === selectedId
+
+              return (
+                <button
+                  key={c.id}
+                  type='button'
+                  onClick={() => setSelectedId(c.id)}
+                  className={`w-full rounded-xl border px-3 py-2 text-left text-sm transition ${
+                    active
+                      ? 'border-white/20 bg-white/10'
+                      : 'border-white/10 bg-white/5 hover:bg-white/10'
+                  }`}
+                >
+                  <div className='truncate text-xs text-slate-400'>{c.id}</div>
+                  <div className='mt-0.5 text-slate-100'>{label}</div>
+                </button>
+              )
+            })
           )}
         </div>
       </aside>
 
       {/* Messages */}
-      <main className='flex flex-col rounded-lg border p-3'>
-        <h2 className='mb-2 font-semibold'>Messages</h2>
+      <main className='glass flex flex-col p-4'>
+        <div className='mb-3 flex items-center justify-between'>
+          <h2 className='text-sm font-semibold text-slate-200'>Messages</h2>
+          {selectedId && (
+            <span className='truncate text-xs text-slate-400'>
+              {selectedId}
+            </span>
+          )}
+        </div>
 
-        <div className='flex-1 space-y-3 overflow-y-auto rounded-md border p-3'>
+        <div className='glass-inset flex-1 overflow-y-auto p-3'>
           {!selectedId ? (
-            <p className='text-sm text-gray-500'>Select a conversation.</p>
+            <p className='text-sm text-slate-400'>Select a conversation.</p>
           ) : loadingMessages ? (
-            <p className='text-sm text-gray-500'>Loading messages…</p>
+            <p className='text-sm text-slate-400'>Loading messages…</p>
           ) : messages.length === 0 ? (
-            <p className='text-sm text-gray-500'>No messages yet.</p>
+            <p className='text-sm text-slate-400'>No messages yet.</p>
           ) : (
-            messages.map((m) => (
-              <div key={m.id}>
-                <div className='text-xs text-gray-500'>
-                  {m.senderId === currentUser.id ? 'You' : m.senderId} ·{' '}
-                  {new Date(m.createdAt).toLocaleString()}
-                </div>
-                <div>{m.content}</div>
-              </div>
-            ))
+            <div className='space-y-3'>
+              {messages.map((m) => {
+                const mine = m.senderId === currentUser.id
+
+                return (
+                  <div
+                    key={m.id}
+                    className={`flex ${mine ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[80%] rounded-2xl border px-3 py-2 text-sm ${
+                        mine
+                          ? 'border-white/10 bg-indigo-500/20'
+                          : 'border-white/10 bg-white/5'
+                      }`}
+                    >
+                      <div className='mb-1 text-xs text-slate-400'>
+                        {mine ? 'You' : m.senderId} ·{' '}
+                        {new Date(m.createdAt).toLocaleString()}
+                      </div>
+                      <div className='text-slate-100'>{m.content}</div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
 
         <div className='mt-3 flex gap-2'>
           <input
-            className='flex-1 rounded-md border px-3 py-2'
+            className='glass-input'
             placeholder='Type a message'
             value={content}
             onChange={(e) => setContent(e.target.value)}
             disabled={!selectedId || sending}
           />
           <button
+            type='button'
             onClick={onSend}
             disabled={!selectedId || sending || content.trim().length === 0}
-            className='rounded-md bg-gray-900 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-60'
+            className='glass-button whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60'
           >
             {sending ? 'Sending…' : 'Send'}
           </button>
         </div>
 
-        {error && <p className='mt-2 text-sm text-red-600'>{error}</p>}
+        {error && (
+          <p className='mt-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-200'>
+            {error}
+          </p>
+        )}
       </main>
     </div>
   )

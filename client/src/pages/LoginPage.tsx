@@ -25,62 +25,90 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: User) => void }) {
   }
 
   return (
-    <div className='mx-auto mt-24 max-w-md rounded-xl border p-6 shadow-sm'>
-      <h1 className='mb-4 text-2xl font-semibold'>Messenger</h1>
+    <div className='flex min-h-screen items-center justify-center px-4'>
+      <div className='glass w-full max-w-md p-6'>
+        <div className='mb-5'>
+          <h1 className='text-2xl font-semibold'>Messenger</h1>
+          <p className='mt-1 text-sm text-slate-400'>
+            Cookie-based auth + conversations + messages
+          </p>
+        </div>
 
-      <div className='mb-4 flex gap-2'>
+        <div className='mb-4 grid grid-cols-2 gap-2'>
+          <button
+            type='button'
+            onClick={() => setMode('login')}
+            className={
+              mode === 'login'
+                ? 'glass-button'
+                : 'glass-button opacity-70 hover:opacity-100'
+            }
+          >
+            Login
+          </button>
+          <button
+            type='button'
+            onClick={() => setMode('register')}
+            className={
+              mode === 'register'
+                ? 'glass-button'
+                : 'glass-button opacity-70 hover:opacity-100'
+            }
+          >
+            Register
+          </button>
+        </div>
+
+        <div className='space-y-3'>
+          {mode === 'register' && (
+            <label className='block text-sm text-slate-200'>
+              Username
+              <input
+                className='glass-input mt-1'
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </label>
+          )}
+
+          <label className='block text-sm text-slate-200'>
+            Email
+            <input
+              className='glass-input mt-1'
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </label>
+
+          <label className='block text-sm text-slate-200'>
+            Password
+            <input
+              type='password'
+              className='glass-input mt-1'
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+        </div>
+
         <button
-          onClick={() => setMode('login')}
-          className={`flex-1 rounded-md px-3 py-2 text-sm ${mode === 'login' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'}`}
+          type='button'
+          onClick={submit}
+          className='glass-button mt-5 w-full'
         >
-          Login
+          {mode === 'register' ? 'Create account' : 'Login'}
         </button>
-        <button
-          onClick={() => setMode('register')}
-          className={`flex-1 rounded-md px-3 py-2 text-sm ${mode === 'register' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'}`}
-        >
-          Register
-        </button>
+
+        {error && (
+          <p className='mt-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-200'>
+            {error}
+          </p>
+        )}
+
+        <p className='mt-4 text-xs text-slate-400'>
+          Note: Requests include credentials; cookies must be enabled.
+        </p>
       </div>
-
-      {mode === 'register' && (
-        <label className='mb-3 block text-sm'>
-          Username
-          <input
-            className='mt-1 w-full rounded-md border px-3 py-2'
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
-        </label>
-      )}
-
-      <label className='mb-3 block text-sm'>
-        Email
-        <input
-          className='mt-1 w-full rounded-md border px-3 py-2'
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-      </label>
-
-      <label className='mb-4 block text-sm'>
-        Password
-        <input
-          type='password'
-          className='mt-1 w-full rounded-md border px-3 py-2'
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-      </label>
-
-      <button
-        onClick={submit}
-        className='w-full rounded-md bg-gray-900 py-2 text-white hover:bg-gray-800'
-      >
-        {mode === 'register' ? 'Create account' : 'Login'}
-      </button>
-
-      {error && <p className='mt-3 text-sm text-red-600'>{error}</p>}
     </div>
   )
 }
