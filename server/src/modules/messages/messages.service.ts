@@ -1,5 +1,6 @@
 import { prisma } from '../../lib/prisma.js'
 import { assertUserIsConversationMember } from '../conversations/conversations.service.js'
+import { getIO } from '../../socket/io.js'
 
 export async function sendMessage(params: {
   conversationId: string
@@ -35,6 +36,8 @@ export async function sendMessage(params: {
 
     return created
   })
+
+  getIO().to(`conversation:${conversationId}`).emit('message:new', message)
 
   return message
 }

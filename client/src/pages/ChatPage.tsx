@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Conversation, Message, User } from '../types/api'
 import { createConversation, listConversations } from '../api/conversations'
 import { listMessages, sendMessage } from '../api/messages'
+import { socket } from '../socket'
 
 export function ChatPage({ currentUser }: { currentUser: User }) {
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -17,6 +18,33 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
   const [sending, setSending] = useState(false)
 
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!selectedId) return
+
+    socket.emit('conversation:join', selectedId)
+
+    return () => {
+      socket.emit('conversation:leave', selectedId)
+    }
+  }, [selectedId])
+
+  useEffect(() => {
+    function onNewMessage(message: Message) {
+      if (message.conversationId !== selectedId) return
+
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === message.id)) return prev
+        return [...prev, message]
+      })
+    }
+
+    socket.on('message:new', onNewMessage)
+
+    return () => {
+      socket.off('message:new', onNewMessage)
+    }
+  }, [selectedId])
 
   useEffect(() => {
     let cancelled = false
@@ -106,8 +134,7 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
     setSending(true)
 
     try {
-      const res = await sendMessage(selectedId, { content: trimmed })
-      setMessages((prev) => [...prev, res.message])
+      await sendMessage(selectedId, { content: trimmed })
       setContent('')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')

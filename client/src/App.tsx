@@ -3,10 +3,16 @@ import type { User } from './types/api'
 import { me, logout } from './api/auth'
 import { LoginPage } from './pages/LoginPage'
 import { ChatPage } from './pages/ChatPage'
+import { socket } from './socket'
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (user) socket.connect()
+    else socket.disconnect()
+  }, [user])
 
   useEffect(() => {
     me()

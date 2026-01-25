@@ -1,10 +1,12 @@
 import { createServer } from 'node:http'
 import { app } from './app.js'
 import { env } from './config/env.js'
+import { initSocket } from './socket/io.js'
 
-const server = createServer(app)
+const httpServer = createServer(app)
 
-server.listen(env.PORT, () => {
-  // Basic for now. Will be switched to a logger wrapper later
+initSocket(httpServer)
+
+httpServer.listen(env.PORT, () => {
   console.log(`[server] listening on http://localhost:${env.PORT}`)
 })
