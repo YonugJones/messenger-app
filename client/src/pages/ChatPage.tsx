@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Conversation, Message, User } from '../types/api'
 import { createConversation, listConversations } from '../api/conversations'
 import { listMessages, sendMessage } from '../api/messages'
@@ -8,7 +8,7 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  const [recipientUsername, setrecipientUsername] = useState('')
+  const [recipientUsername, setRecipientUsername] = useState('')
   const [creatingConversation, setCreatingConversation] = useState(false)
 
   const [messages, setMessages] = useState<Message[]>([])
@@ -19,16 +19,45 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
 
   const [error, setError] = useState<string | null>(null)
 
+  const [typingUsernames, setTypingUsernames] = useState<string[]>([])
+  const isTypingRef = useRef(false)
+  const stopTypingTimeoutRef = useRef<number | null>(null)
+
+  function emitTypingStart() {
+    if (!selectedId) return
+    if (isTypingRef.current) return
+
+    isTypingRef.current = true
+    socket.emit('typing:start', selectedId)
+  }
+
+  function emitTypingStop() {
+    if (!selectedId) return
+    if (!isTypingRef.current) return
+
+    isTypingRef.current = false
+    socket.emit('typing:stop', selectedId)
+  }
+
+  // Join/leave the conversation room when selection changes
   useEffect(() => {
     if (!selectedId) return
 
     socket.emit('conversation:join', selectedId)
 
     return () => {
+      // best-effort: stop typing before leaving the room
+      if (stopTypingTimeoutRef.current) {
+        window.clearTimeout(stopTypingTimeoutRef.current)
+        stopTypingTimeoutRef.current = null
+      }
+      emitTypingStop()
       socket.emit('conversation:leave', selectedId)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId])
 
+  // Receive new messages in realtime
   useEffect(() => {
     function onNewMessage(message: Message) {
       if (message.conversationId !== selectedId) return
@@ -40,12 +69,47 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
     }
 
     socket.on('message:new', onNewMessage)
-
     return () => {
       socket.off('message:new', onNewMessage)
     }
   }, [selectedId])
 
+  // Receive typing updates in realtime
+  useEffect(() => {
+    type TypingUpdate = {
+      conversationId: string
+      userId: string
+      username: string
+      isTyping: boolean
+    }
+
+    function onTypingUpdate(payload: TypingUpdate) {
+      if (payload.conversationId !== selectedId) return
+      if (payload.userId === currentUser.id) return
+
+      setTypingUsernames((prev) => {
+        const exists = prev.includes(payload.username)
+
+        if (payload.isTyping) {
+          return exists ? prev : [...prev, payload.username]
+        }
+
+        return exists ? prev.filter((u) => u !== payload.username) : prev
+      })
+    }
+
+    socket.on('typing:update', onTypingUpdate)
+    return () => {
+      socket.off('typing:update', onTypingUpdate)
+    }
+  }, [currentUser.id, selectedId])
+
+  // Clear typing indicator when switching conversations
+  useEffect(() => {
+    setTypingUsernames([])
+  }, [selectedId])
+
+  // Load conversations on mount
   useEffect(() => {
     let cancelled = false
 
@@ -68,6 +132,7 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
     }
   }, [])
 
+  // Load messages when conversation changes
   useEffect(() => {
     if (!selectedId) return
 
@@ -86,7 +151,6 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
         if (cancelled) return
         setError(e instanceof Error ? e.message : 'Error')
       } finally {
-        // avoid return in finally
         if (!cancelled) setLoadingMessages(false)
       }
     })()
@@ -95,6 +159,18 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
       cancelled = true
     }
   }, [selectedId])
+
+  // Unmount cleanup: clear timer + stop typing best-effort
+  useEffect(() => {
+    return () => {
+      if (stopTypingTimeoutRef.current) {
+        window.clearTimeout(stopTypingTimeoutRef.current)
+        stopTypingTimeoutRef.current = null
+      }
+      emitTypingStop()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const selectedConversation = conversations.find((c) => c.id === selectedId)
 
@@ -113,7 +189,7 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
 
     try {
       const res = await createConversation({ recipientUsername: trimmed })
-      setrecipientUsername('')
+      setRecipientUsername('')
 
       const refreshed = await listConversations()
       setConversations(refreshed.conversations)
@@ -134,6 +210,13 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
     setSending(true)
 
     try {
+      // stop typing immediately on send
+      if (stopTypingTimeoutRef.current) {
+        window.clearTimeout(stopTypingTimeoutRef.current)
+        stopTypingTimeoutRef.current = null
+      }
+      emitTypingStop()
+
       await sendMessage(selectedId, { content: trimmed })
       setContent('')
     } catch (e) {
@@ -159,7 +242,7 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
             placeholder='Username'
             className='glass-input'
             value={recipientUsername}
-            onChange={(e) => setrecipientUsername(e.target.value)}
+            onChange={(e) => setRecipientUsername(e.target.value)}
           />
           <button
             type='button'
@@ -209,10 +292,16 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
 
       {/* Messages */}
       <main className='glass flex flex-col p-4'>
-        <div className='mb-3 flex items-center justify-between'>
+        <div className='mb-3 flex flex-col'>
           <h2 className='text-sm font-semibold text-slate-200'>
             {conversationTitle}
           </h2>
+
+          {typingUsernames.length > 0 && (
+            <div className='mt-1 text-xs text-slate-400'>
+              {typingUsernames.join(', ')} typing…
+            </div>
+          )}
         </div>
 
         <div className='glass-inset flex-1 overflow-y-auto p-3'>
@@ -257,9 +346,33 @@ export function ChatPage({ currentUser }: { currentUser: User }) {
             className='glass-input'
             placeholder='Type a message'
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={(e) => {
+              const nextValue = e.target.value
+              setContent(nextValue)
+
+              if (!selectedId) return
+
+              if (nextValue.trim().length > 0) {
+                emitTypingStart()
+
+                if (stopTypingTimeoutRef.current) {
+                  window.clearTimeout(stopTypingTimeoutRef.current)
+                }
+
+                stopTypingTimeoutRef.current = window.setTimeout(() => {
+                  emitTypingStop()
+                }, 800)
+              } else {
+                if (stopTypingTimeoutRef.current) {
+                  window.clearTimeout(stopTypingTimeoutRef.current)
+                  stopTypingTimeoutRef.current = null
+                }
+                emitTypingStop()
+              }
+            }}
             disabled={!selectedId || sending}
           />
+
           <button
             type='button'
             onClick={onSend}

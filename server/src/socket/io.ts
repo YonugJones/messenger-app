@@ -2,12 +2,14 @@ import type { Server as HttpServer } from 'node:http'
 import { Server, type DefaultEventsMap } from 'socket.io'
 import cookie from 'cookie'
 import { env } from '../config/env.js'
+import { prisma } from '../lib/prisma.js'
 import { verifyAccessToken } from '../modules/auth/auth.tokens.js'
 import { ACCESS_COOKIE_NAME } from '../modules/auth/auth.cookies.js'
 import { assertUserIsConversationMember } from '../modules/conversations/conversations.service.js'
 
 type SocketData = {
   userId: string
+  username: string
 }
 
 let io: Server<
@@ -30,7 +32,7 @@ export function initSocket(httpServer: HttpServer) {
     },
   })
 
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     try {
       const raw = socket.handshake.headers.cookie
       if (!raw) return next(new Error('Unauthorized'))
@@ -41,8 +43,17 @@ export function initSocket(httpServer: HttpServer) {
 
       const payload = verifyAccessToken(token)
 
-      socket.data.userId = payload.sub
-      socket.join(`user:${payload.sub}`)
+      const user = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { id: true, username: true },
+      })
+
+      if (!user) return next(new Error('Unauthorized'))
+
+      socket.data.userId = user.id
+      socket.data.username = user.username
+
+      socket.join(`user:${user.id}`)
 
       return next()
     } catch {
@@ -75,6 +86,46 @@ export function initSocket(httpServer: HttpServer) {
     socket.on('conversation:leave', (conversationId: string) => {
       if (typeof conversationId !== 'string') return
       socket.leave(`conversation:${conversationId}`)
+    })
+
+    socket.on('typing:start', async (conversationId: string) => {
+      if (typeof conversationId !== 'string') return
+
+      try {
+        await assertUserIsConversationMember({
+          conversationId,
+          userId: socket.data.userId,
+        })
+
+        socket.to(`conversation:${conversationId}`).emit('typing:update', {
+          conversationId,
+          userId: socket.data.userId,
+          username: socket.data.username,
+          isTyping: true,
+        })
+      } catch {
+        // ignore
+      }
+    })
+
+    socket.on('typing:stop', async (conversationId: string) => {
+      if (typeof conversationId !== 'string') return
+
+      try {
+        await assertUserIsConversationMember({
+          conversationId,
+          userId: socket.data.userId,
+        })
+
+        socket.to(`conversation:${conversationId}`).emit('typing:update', {
+          conversationId,
+          userId: socket.data.userId,
+          username: socket.data.username,
+          isTyping: false,
+        })
+      } catch {
+        // ignore
+      }
     })
 
     socket.on('disconnect', () => {
